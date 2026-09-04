@@ -1,0 +1,2 @@
+export const LOGO_URL =
+  'https://lh3.googleusercontent.com/aida-public/AB6AXuDQ2SSuUIfWQaRb7Hpi8LrtJewrUAH2tflM6CO97jTXjkisnHj9N5ezX81ZMaz5aQ5dxnXNT_PNAzMxhoLfEl7_NU6mfrFj0nsYhy7l8-MnPj3VJfOmTMEC4-i-jqFneMr45O5VomOuekYOwpJz8XjSDm-5fIQW6DgItXahq06CgZAB3gF83JFZ5TGjhBoR7IupRUIE3fmNr6hRmg5NeNyhPxAaClUZyCEWfHvUIRG5QSqCCkPY1cXotIn9h08pD8EhPHdQDIkR0w';
