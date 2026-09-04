@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import AppLayout from './layouts/AppLayout';
 import DashboardPage from './pages/DashboardPage';
@@ -79,7 +79,7 @@ import ProtectedRoute from './routes/ProtectedRoute';
 
 function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <AuthProvider>
         <PartenariatDossiersProvider>
           <GraphisteWorkspaceProvider>
@@ -173,7 +173,7 @@ function App() {
           </GraphisteWorkspaceProvider>
         </PartenariatDossiersProvider>
       </AuthProvider>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
 
