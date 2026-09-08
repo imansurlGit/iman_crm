@@ -3,12 +3,14 @@
 // Le reste (identité, rôle, division, statut du compte, dernière connexion
 // réelle via `last_login`) est réel (`listUsers`).
 
-import { useEffect, useMemo, useState } from 'react';
-import { listUsers, type CurrentUser } from '../services/userService';
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
+import { createUser, deleteUser, listRoles, listUsers, updateUser, type CurrentUser, type RoleOption } from '../services/userService';
+import { listDivisions, type Division } from '../services/divisionService';
+import Modal from '../components/ui/Modal';
+import { ICON_CLASSES, LABEL_CLASSES } from '../components/ui/formStyles';
 
-const CARD_CLASSES = 'bg-white rounded-lg border border-outline-variant';
-const SEARCH_INPUT_CLASSES =
-  'w-full bg-surface-container border border-outline-variant py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-primary-container transition-all';
+const ICON_INPUT_CLASSES =
+  'w-full pl-10 pr-3 py-2 bg-white border border-outline-variant rounded-lg text-sm focus:ring-1 focus:ring-primary outline-none transition-all';
 
 interface FakeLogEntry {
   label: string;
@@ -48,14 +50,95 @@ export default function AdchComptesPage() {
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
+  const [roles, setRoles] = useState<RoleOption[]>([]);
+  const [divisions, setDivisions] = useState<Division[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<CurrentUser | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  async function loadUsers(selectId?: number | null) {
+    const data = await listUsers();
+    setUsers(data);
+    setSelectedId((prev) => (selectId !== undefined ? selectId : (prev ?? data[0]?.id ?? null)));
+  }
+
   useEffect(() => {
-    listUsers()
-      .then((data) => {
-        setUsers(data);
-        setSelectedId(data[0]?.id ?? null);
-      })
-      .finally(() => setIsLoading(false));
+    loadUsers().finally(() => setIsLoading(false));
+    listRoles()
+      .then(setRoles)
+      .catch(() => setRoles([]));
+    listDivisions()
+      .then(setDivisions)
+      .catch(() => setDivisions([]));
   }, []);
+
+  useEffect(() => {
+    if (!isModalOpen) return;
+    setFormError(null);
+  }, [isModalOpen]);
+
+  function openCreateModal() {
+    setEditingUser(null);
+    setPreviewUrl(null);
+    setIsModalOpen(true);
+  }
+
+  function openEditModal(user: CurrentUser) {
+    setEditingUser(user);
+    setPreviewUrl(null);
+    setIsModalOpen(true);
+  }
+
+  function closeModal() {
+    setIsModalOpen(false);
+    setPreviewUrl(null);
+  }
+
+  function handlePictureChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    setPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return file ? URL.createObjectURL(file) : null;
+    });
+  }
+
+  async function handleDelete(user: CurrentUser) {
+    const fullName = `${user.first_name} ${user.last_name}`.trim() || user.email;
+    if (!window.confirm(`Supprimer ${fullName} ? Cette action est irréversible.`)) return;
+    await deleteUser(user.id);
+    await loadUsers(null);
+  }
+
+  async function handleFormSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFormError(null);
+    setIsSubmitting(true);
+
+    const formData = new FormData(event.currentTarget);
+    const picture = formData.get('profile_picture');
+    if (picture instanceof File && picture.size === 0) {
+      formData.delete('profile_picture');
+    }
+
+    try {
+      if (editingUser) {
+        const updated = await updateUser(editingUser.id, formData);
+        await loadUsers(updated.id);
+      } else {
+        const created = await createUser(formData);
+        await loadUsers(created.id);
+      }
+      closeModal();
+    } catch {
+      setFormError(
+        "Impossible d'enregistrer cet utilisateur. Vérifiez les champs (email déjà utilisé, fonction déjà occupée par quelqu'un d'autre...)."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   const filteredUsers = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -72,52 +155,81 @@ export default function AdchComptesPage() {
   const connectedCount = users.filter(isConnectedNow).length;
 
   if (isLoading) {
-    return <p className="font-body-sm text-body-sm text-secondary">Chargement...</p>;
+    return (
+      <div className="flex items-center justify-center min-h-[300px] text-slate-400 text-xs">
+        <span className="material-symbols-outlined animate-spin mr-2">progress_activity</span>
+        Chargement...
+      </div>
+    );
   }
 
   return (
-    <div className="flex flex-col gap-gutter">
-      <section className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-        <div>
-          <h2 className="font-headline-md text-headline-md text-on-surface tracking-tight">Comptes &amp; connexions</h2>
-          <p className="text-secondary mt-1 text-sm">Fiches des utilisateurs, statut de connexion et journal d'activité.</p>
+    <div className="max-w-[1480px] mx-auto space-y-5 pb-16 text-slate-800 animate-fadeIn">
+      {/* ==================================================================== */}
+      {/* EN-TÊTE                                                              */}
+      {/* ==================================================================== */}
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-5 rounded-2xl border border-slate-100 shadow-xs">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <span className="material-symbols-outlined text-[20px]">admin_panel_settings</span>
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="font-headline-md text-xl font-extrabold text-slate-900 tracking-tight">Comptes &amp; connexions</h1>
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-primary/10 text-primary">ADCH</span>
+            </div>
+            <p className="text-slate-500 text-xs mt-0.5">Fiches des utilisateurs, statut de connexion et journal d'activité.</p>
+          </div>
+        </div>
+        <button
+          className="flex items-center gap-1.5 bg-primary hover:bg-on-primary-fixed-variant text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-xs hover:shadow-md active:scale-95 transition-all shrink-0"
+          onClick={openCreateModal}
+          type="button"
+        >
+          <span className="material-symbols-outlined text-[16px]">person_add</span>
+          Nouveau compte
+        </button>
+      </header>
+
+      {/* ==================================================================== */}
+      {/* KPIS                                                                 */}
+      {/* ==================================================================== */}
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/70 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 text-xs font-medium mb-1">
+            <span>Comptes au total</span>
+            <span className="material-symbols-outlined text-slate-400 text-[18px]">group</span>
+          </div>
+          <div className="text-2xl font-black text-slate-900 tracking-tight font-headline-md">{users.length}</div>
+        </div>
+        <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-200/60 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-600 text-xs font-medium mb-1">
+            <span>Connectés maintenant</span>
+            <span className="material-symbols-outlined text-emerald-600 text-[18px]">wifi</span>
+          </div>
+          <div className="text-2xl font-black text-slate-900 tracking-tight font-headline-md">{connectedCount}</div>
+        </div>
+        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/70 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 text-xs font-medium mb-1">
+            <span>Comptes désactivés</span>
+            <span className="material-symbols-outlined text-slate-400 text-[18px]">person_off</span>
+          </div>
+          <div className="text-2xl font-black text-slate-900 tracking-tight font-headline-md">
+            {users.filter((u) => !u.is_active).length}
+          </div>
         </div>
       </section>
 
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-gutter">
-        <div className={`${CARD_CLASSES} p-4 flex items-center gap-3`}>
-          <span className="material-symbols-outlined text-primary-container text-2xl shrink-0">group</span>
-          <div className="min-w-0">
-            <span className="text-secondary text-xs font-medium block truncate">Comptes au total</span>
-            <span className="font-headline-md text-headline-md text-on-surface leading-tight">{users.length}</span>
-          </div>
-        </div>
-        <div className={`${CARD_CLASSES} p-4 flex items-center gap-3`}>
-          <span className="material-symbols-outlined text-emerald-600 text-2xl shrink-0">wifi</span>
-          <div className="min-w-0">
-            <span className="text-secondary text-xs font-medium block truncate">Connectés maintenant</span>
-            <span className="font-headline-md text-headline-md text-on-surface leading-tight">{connectedCount}</span>
-          </div>
-        </div>
-        <div className={`${CARD_CLASSES} p-4 flex items-center gap-3`}>
-          <span className="material-symbols-outlined text-gray-500 text-2xl shrink-0">person_off</span>
-          <div className="min-w-0">
-            <span className="text-secondary text-xs font-medium block truncate">Comptes désactivés</span>
-            <span className="font-headline-md text-headline-md text-on-surface leading-tight">{users.filter((u) => !u.is_active).length}</span>
-          </div>
-        </div>
-      </section>
-
-      <div className="grid grid-cols-12 gap-gutter items-start">
-        {/* Liste */}
-        <div className={`${CARD_CLASSES} col-span-12 lg:col-span-5 flex flex-col`}>
-          <div className="p-3 border-b border-outline-variant">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* ================================================================== */}
+        {/* LISTE DES UTILISATEURS                                              */}
+        {/* ================================================================== */}
+        <section className="lg:col-span-5 bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden flex flex-col h-[calc(100vh-260px)] min-h-[520px]">
+          <div className="p-4 border-b border-slate-100 shrink-0">
             <div className="relative">
-              <span className="absolute inset-y-0 left-3 flex items-center text-outline">
-                <span className="material-symbols-outlined text-sm">search</span>
-              </span>
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">search</span>
               <input
-                className={SEARCH_INPUT_CLASSES}
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-primary focus:bg-white transition-all"
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Rechercher un utilisateur..."
                 type="text"
@@ -125,20 +237,20 @@ export default function AdchComptesPage() {
               />
             </div>
           </div>
-          <div className="divide-y divide-outline-variant max-h-[560px] overflow-y-auto custom-scrollbar">
+          <div className="flex-1 overflow-y-auto custom-scrollbar divide-y divide-slate-100">
             {filteredUsers.map((user) => {
               const connected = isConnectedNow(user);
               return (
                 <button
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
-                    selectedId === user.id ? 'bg-primary-fixed/20' : 'hover:bg-surface-container-low'
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 border-l-4 text-left transition-colors ${
+                    selectedId === user.id ? 'bg-primary/5 border-l-primary' : 'border-l-transparent hover:bg-slate-50'
                   }`}
                   key={user.id}
                   onClick={() => setSelectedId(user.id)}
                   type="button"
                 >
                   <div className="relative shrink-0">
-                    <div className="w-9 h-9 rounded-full bg-primary-container text-on-primary flex items-center justify-center text-xs font-bold overflow-hidden">
+                    <div className="w-9 h-9 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold overflow-hidden">
                       {user.profile_picture ? (
                         <img alt="" className="w-full h-full object-cover" src={user.profile_picture} />
                       ) : (
@@ -147,18 +259,18 @@ export default function AdchComptesPage() {
                     </div>
                     <span
                       className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
-                        connected ? 'bg-emerald-500' : 'bg-gray-300'
+                        connected ? 'bg-emerald-500' : 'bg-slate-300'
                       }`}
                     />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-on-surface truncate">
+                    <p className="text-xs font-bold text-slate-900 truncate">
                       {user.first_name} {user.last_name}
                     </p>
-                    <p className="text-xs text-secondary truncate">{user.role_display}</p>
+                    <p className="text-[11px] text-slate-500 truncate">{user.role_display}</p>
                   </div>
                   {!user.is_active && (
-                    <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 shrink-0">
+                    <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 shrink-0">
                       Inactif
                     </span>
                   )}
@@ -166,19 +278,21 @@ export default function AdchComptesPage() {
               );
             })}
             {filteredUsers.length === 0 && (
-              <div className="px-4 py-8 text-center text-secondary text-sm">Aucun utilisateur ne correspond à votre recherche.</div>
+              <div className="px-4 py-10 text-center text-slate-400 text-xs">Aucun utilisateur ne correspond à votre recherche.</div>
             )}
           </div>
-        </div>
+        </section>
 
-        {/* Fiche */}
-        <div className="col-span-12 lg:col-span-7 flex flex-col gap-gutter">
+        {/* ================================================================== */}
+        {/* FICHE UTILISATEUR                                                   */}
+        {/* ================================================================== */}
+        <section className="lg:col-span-7 flex flex-col gap-5">
           {selectedUser ? (
             <>
-              <div className={`${CARD_CLASSES} p-5`}>
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-5">
                 <div className="flex items-center gap-4">
                   <div className="relative shrink-0">
-                    <div className="w-16 h-16 rounded-full bg-primary-container text-on-primary flex items-center justify-center text-lg font-bold overflow-hidden">
+                    <div className="w-16 h-16 rounded-full bg-primary text-white flex items-center justify-center text-lg font-bold overflow-hidden">
                       {selectedUser.profile_picture ? (
                         <img alt="" className="w-full h-full object-cover" src={selectedUser.profile_picture} />
                       ) : (
@@ -187,34 +301,58 @@ export default function AdchComptesPage() {
                     </div>
                     <span
                       className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-white ${
-                        isConnectedNow(selectedUser) ? 'bg-emerald-500' : 'bg-gray-300'
+                        isConnectedNow(selectedUser) ? 'bg-emerald-500' : 'bg-slate-300'
                       }`}
                     />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h3 className="font-headline-md text-lg font-bold text-on-surface truncate">
-                      {selectedUser.first_name} {selectedUser.last_name}
-                    </h3>
-                    <p className="text-sm text-secondary truncate">{selectedUser.email}</p>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-primary/5 border border-primary/20 text-primary">
+                    <div className="flex items-start justify-between gap-2">
+                      <h2 className="font-headline-md text-lg font-bold text-slate-900 truncate">
+                        {selectedUser.first_name} {selectedUser.last_name}
+                      </h2>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          aria-label="Modifier"
+                          className="w-8 h-8 inline-flex items-center justify-center text-amber-600 border border-amber-200 hover:bg-amber-50 rounded-lg transition-colors"
+                          onClick={() => openEditModal(selectedUser)}
+                          type="button"
+                        >
+                          <span className="material-symbols-outlined text-[17px]">edit</span>
+                        </button>
+                        <button
+                          aria-label="Supprimer"
+                          className="w-8 h-8 inline-flex items-center justify-center text-rose-600 border border-rose-200 hover:bg-rose-50 rounded-lg transition-colors"
+                          onClick={() => handleDelete(selectedUser)}
+                          type="button"
+                        >
+                          <span className="material-symbols-outlined text-[17px]">delete</span>
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-sm text-slate-500 truncate">{selectedUser.email}</p>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-primary/10 border border-primary/20 text-primary">
                         {selectedUser.role_display}
                       </span>
                       {selectedUser.division_name && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-surface-container-high text-secondary">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-100 text-slate-500">
                           {selectedUser.division_name}
                         </span>
                       )}
                       <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                          selectedUser.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                          selectedUser.is_active
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-slate-100 text-slate-500 border-slate-200'
                         }`}
                       >
                         {selectedUser.is_active ? 'Compte actif' : 'Compte désactivé'}
                       </span>
                       <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                          isConnectedNow(selectedUser) ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                          isConnectedNow(selectedUser)
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-slate-100 text-slate-500 border-slate-200'
                         }`}
                       >
                         {isConnectedNow(selectedUser) ? 'Connecté maintenant' : 'Hors ligne'}
@@ -223,33 +361,33 @@ export default function AdchComptesPage() {
                   </div>
                 </div>
 
-                <dl className="grid grid-cols-2 gap-4 mt-5 pt-5 border-t border-outline-variant text-sm">
+                <dl className="grid grid-cols-2 gap-4 mt-5 pt-5 border-t border-slate-100 text-sm">
                   <div>
-                    <dt className="text-secondary text-xs uppercase font-bold tracking-wide">Compte créé le</dt>
-                    <dd className="font-semibold text-on-surface mt-0.5">{formatDateTime(selectedUser.date_joined)}</dd>
+                    <dt className="text-slate-400 text-[10px] uppercase font-bold tracking-wide">Compte créé le</dt>
+                    <dd className="font-semibold text-slate-900 mt-0.5">{formatDateTime(selectedUser.date_joined)}</dd>
                   </div>
                   <div>
-                    <dt className="text-secondary text-xs uppercase font-bold tracking-wide">Dernière connexion</dt>
-                    <dd className="font-semibold text-on-surface mt-0.5">
+                    <dt className="text-slate-400 text-[10px] uppercase font-bold tracking-wide">Dernière connexion</dt>
+                    <dd className="font-semibold text-slate-900 mt-0.5">
                       {selectedUser.last_login ? formatDateTime(selectedUser.last_login) : 'Jamais connecté(e)'}
                     </dd>
                   </div>
                 </dl>
               </div>
 
-              <div className={`${CARD_CLASSES} p-5`}>
-                <h4 className="font-headline-md text-base font-bold text-on-surface mb-4">Journal de connexions</h4>
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-5">
+                <h3 className="font-headline-md text-sm font-bold text-slate-900 mb-3">Journal de connexions</h3>
                 <div className="space-y-3">
                   {fakeLogsFor(selectedUser).map((entry, index) => (
                     <div className="flex items-start gap-3" key={index}>
-                      <div className="w-7 h-7 rounded-full bg-primary-container/10 text-primary flex items-center justify-center shrink-0">
+                      <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
                         <span className="material-symbols-outlined text-[14px]">
                           {entry.label.includes('Mot de passe') ? 'lock_reset' : 'login'}
                         </span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-on-surface">{entry.label}</p>
-                        <p className="text-[11px] text-secondary">
+                        <p className="text-sm text-slate-800">{entry.label}</p>
+                        <p className="text-[11px] text-slate-500">
                           {entry.device} · {entry.time}
                         </p>
                       </div>
@@ -259,10 +397,205 @@ export default function AdchComptesPage() {
               </div>
             </>
           ) : (
-            <div className={`${CARD_CLASSES} p-8 text-center text-secondary text-sm`}>Sélectionnez un utilisateur.</div>
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-10 text-center text-slate-400 text-xs">
+              Sélectionnez un utilisateur.
+            </div>
           )}
-        </div>
+        </section>
       </div>
+
+      {/* ==================================================================== */}
+      {/* MODAL : NOUVEAU / MODIFIER COMPTE                                    */}
+      {/* ==================================================================== */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        title={editingUser ? "Modifier l'utilisateur" : 'Ajouter un utilisateur'}
+        footer={
+          <>
+            <button
+              className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-100 transition-colors"
+              onClick={closeModal}
+              type="button"
+            >
+              Annuler
+            </button>
+            <button
+              className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-on-primary-fixed-variant transition-colors disabled:opacity-50"
+              disabled={isSubmitting}
+              form="adch-user-form"
+              type="submit"
+            >
+              {isSubmitting ? 'Enregistrement...' : 'Enregistrer'}
+            </button>
+          </>
+        }
+      >
+        <form className="space-y-3" id="adch-user-form" onSubmit={handleFormSubmit}>
+          <div className="flex items-center gap-4">
+            {previewUrl || editingUser?.profile_picture ? (
+              <img
+                alt=""
+                className="w-16 h-16 rounded-full object-cover border-2 border-primary/20 shrink-0"
+                src={previewUrl ?? editingUser?.profile_picture ?? undefined}
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
+                <span className="material-symbols-outlined text-[28px]">person</span>
+              </div>
+            )}
+            <div className="flex-1 space-y-1">
+              <label className={LABEL_CLASSES} htmlFor="profile_picture">
+                Photo de profil
+              </label>
+              <input
+                accept="image/*"
+                className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-slate-100 file:text-slate-700 file:text-xs file:font-semibold hover:file:bg-slate-200"
+                id="profile_picture"
+                name="profile_picture"
+                onChange={handlePictureChange}
+                type="file"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-0.5">
+              <label className={LABEL_CLASSES} htmlFor="first_name">
+                Prénom
+              </label>
+              <div className="relative">
+                <span className={ICON_CLASSES}>person</span>
+                <input
+                  className={ICON_INPUT_CLASSES}
+                  defaultValue={editingUser?.first_name}
+                  id="first_name"
+                  name="first_name"
+                  placeholder="Ex : Aminata"
+                  required
+                  type="text"
+                />
+              </div>
+            </div>
+            <div className="space-y-0.5">
+              <label className={LABEL_CLASSES} htmlFor="last_name">
+                Nom
+              </label>
+              <div className="relative">
+                <span className={ICON_CLASSES}>badge</span>
+                <input
+                  className={ICON_INPUT_CLASSES}
+                  defaultValue={editingUser?.last_name}
+                  id="last_name"
+                  name="last_name"
+                  placeholder="Ex : Souley"
+                  required
+                  type="text"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-0.5">
+              <label className={LABEL_CLASSES} htmlFor="email">
+                Email
+              </label>
+              <div className="relative">
+                <span className={ICON_CLASSES}>mail</span>
+                <input
+                  className={ICON_INPUT_CLASSES}
+                  defaultValue={editingUser?.email}
+                  id="email"
+                  name="email"
+                  placeholder="user@iman.ne"
+                  required
+                  type="email"
+                />
+              </div>
+            </div>
+            <div className="space-y-0.5">
+              <label className={LABEL_CLASSES} htmlFor="role">
+                Fonction
+              </label>
+              <div className="relative">
+                <span className={ICON_CLASSES}>work</span>
+                <select
+                  className={`${ICON_INPUT_CLASSES} appearance-none`}
+                  defaultValue={editingUser?.role ?? ''}
+                  id="role"
+                  name="role"
+                >
+                  <option value="">—</option>
+                  {roles.map((role) => (
+                    <option key={role.value} value={role.value}>
+                      {role.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px] pointer-events-none">
+                  expand_more
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className={`grid gap-3 ${editingUser ? 'grid-cols-1' : 'grid-cols-2'}`}>
+            <div className="space-y-0.5">
+              <label className={LABEL_CLASSES} htmlFor="division">
+                Division
+              </label>
+              <div className="relative">
+                <span className={ICON_CLASSES}>account_tree</span>
+                <select
+                  className={`${ICON_INPUT_CLASSES} appearance-none`}
+                  defaultValue={editingUser?.division ?? ''}
+                  id="division"
+                  name="division"
+                >
+                  <option value="">—</option>
+                  {divisions.map((division) => (
+                    <option key={division.id} value={division.id}>
+                      {division.name}
+                    </option>
+                  ))}
+                </select>
+                <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px] pointer-events-none">
+                  expand_more
+                </span>
+              </div>
+            </div>
+
+            {!editingUser && (
+              <div className="space-y-0.5">
+                <label className={LABEL_CLASSES} htmlFor="password">
+                  Mot de passe
+                </label>
+                <div className="relative">
+                  <span className={ICON_CLASSES}>lock</span>
+                  <input
+                    className={ICON_INPUT_CLASSES}
+                    defaultValue="1234"
+                    id="password"
+                    minLength={4}
+                    name="password"
+                    placeholder="Mot de passe provisoire"
+                    required
+                    type="text"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          {!editingUser && (
+            <p className="text-[11px] text-slate-400">
+              Mot de passe provisoire — l'utilisateur pourra le changer après sa première connexion.
+            </p>
+          )}
+
+          {formError && <p className="text-xs text-rose-600 font-semibold">{formError}</p>}
+        </form>
+      </Modal>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import SidebarCdv from './SidebarCdv';
 import SidebarComptable from './SidebarComptable';
 import SidebarVip from './SidebarVip';
 import SidebarDg from './SidebarDg';
+import SidebarAdch from './SidebarAdch';
 
 interface NavItem {
   label: string;
@@ -95,16 +96,6 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    label: 'Ressources Humaines',
-    roles: ['ADCH'],
-    items: [
-      { label: 'Agenda du DG', to: '/adch/agenda-dg', icon: 'event' },
-      { label: 'Congés', to: '/adch/conges', icon: 'beach_access' },
-      { label: 'Comptes & connexions', to: '/adch/comptes', icon: 'admin_panel_settings' },
-      { label: 'Calendrier collaboratif', to: '/calendrier-collaboratif', icon: 'calendar_month' },
-    ],
-  },
-  {
     roles: USER_MANAGEMENT_ROLES,
     items: [{ label: 'Gestion des utilisateurs', to: '/utilisateurs', icon: 'group' }],
   },
@@ -149,6 +140,10 @@ export default function Sidebar() {
 
   if (user?.role === 'DG') {
     return <SidebarDg />;
+  }
+
+  if (user?.role === 'ADCH') {
+    return <SidebarAdch />;
   }
 
   function isVisible(roles: string[] | undefined) {

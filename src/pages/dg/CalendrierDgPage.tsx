@@ -122,9 +122,13 @@ export default function CalendrierDgPage() {
     [appointments],
   );
 
+  // Le mois n'affiche que les rendez-vous déjà tranchés — une demande PENDING
+  // n'est pas encore un engagement du DG, elle ne vit que dans le bandeau
+  // "Demandes en attente" ci-dessus tant qu'il ne l'a pas acceptée.
   const appointmentsByDay = useMemo(() => {
     const map = new Map<string, ProspectEvent[]>();
     for (const appointment of appointments) {
+      if (appointment.status === 'PENDING') continue;
       const key = dateKey(new Date(appointment.starts_at));
       const list = map.get(key) ?? [];
       list.push(appointment);
@@ -481,16 +485,16 @@ export default function CalendrierDgPage() {
           })}
         </div>
 
-        {/* Légende */}
+        {/* Légende — PENDING exclu : ces demandes ne vivent que dans le bandeau ci-dessus, jamais dans la grille. */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-3.5 pt-3 border-t border-slate-100">
-          {(Object.entries(STATUS_META) as [keyof typeof STATUS_META, (typeof STATUS_META)[keyof typeof STATUS_META]][]).map(
-            ([key, meta]) => (
+          {(Object.entries(STATUS_META) as [keyof typeof STATUS_META, (typeof STATUS_META)[keyof typeof STATUS_META]][])
+            .filter(([key]) => key !== 'PENDING')
+            .map(([key, meta]) => (
               <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-slate-500" key={key}>
                 <span className={`w-2 h-2 rounded-full ${meta.dot}`} />
                 {meta.label}
               </span>
-            ),
-          )}
+            ))}
         </div>
       </section>
 

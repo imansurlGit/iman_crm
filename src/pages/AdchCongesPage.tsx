@@ -7,9 +7,8 @@ import { listUsers, type CurrentUser } from '../services/userService';
 import Modal from '../components/ui/Modal';
 import { LABEL_CLASSES } from '../components/ui/formStyles';
 
-const CARD_CLASSES = 'bg-white rounded-lg border border-outline-variant';
-const SEARCH_INPUT_CLASSES =
-  'w-full bg-surface-container border border-outline-variant py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-primary-container transition-all';
+const INPUT_CLASSES =
+  'w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-1 focus:ring-primary focus:bg-white outline-none transition-all';
 
 interface CongeRecord {
   du: string;
@@ -101,128 +100,188 @@ export default function AdchCongesPage() {
   }
 
   if (isLoading) {
-    return <p className="font-body-sm text-body-sm text-secondary">Chargement...</p>;
+    return (
+      <div className="flex items-center justify-center min-h-[300px] text-slate-400 text-xs">
+        <span className="material-symbols-outlined animate-spin mr-2">progress_activity</span>
+        Chargement...
+      </div>
+    );
   }
 
   return (
-    <div className="flex flex-col gap-gutter">
-      <section className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-        <div>
-          <h2 className="font-headline-md text-headline-md text-on-surface tracking-tight">Congés</h2>
-          <p className="text-secondary mt-1 text-sm">Indiquez si un employé est en congé — visible par toute l'équipe.</p>
-        </div>
-      </section>
-
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-gutter">
-        <div className={`${CARD_CLASSES} p-4 flex items-center gap-3`}>
-          <span className="material-symbols-outlined text-primary-container text-2xl shrink-0">groups</span>
-          <div className="min-w-0">
-            <span className="text-secondary text-xs font-medium block truncate">Effectif total</span>
-            <span className="font-headline-md text-headline-md text-on-surface leading-tight">{users.length}</span>
+    <div className="max-w-[1480px] mx-auto space-y-5 pb-16 text-slate-800 animate-fadeIn">
+      {/* ==================================================================== */}
+      {/* EN-TÊTE                                                              */}
+      {/* ==================================================================== */}
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-5 rounded-2xl border border-slate-100 shadow-xs">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <span className="material-symbols-outlined text-[20px]">beach_access</span>
           </div>
-        </div>
-        <div className={`${CARD_CLASSES} p-4 flex items-center gap-3 ${onLeaveCount > 0 ? 'border-amber-300' : ''}`}>
-          <span className={`material-symbols-outlined text-2xl shrink-0 ${onLeaveCount > 0 ? 'text-amber-600' : 'text-primary-container'}`}>
-            beach_access
-          </span>
-          <div className="min-w-0">
-            <span className="text-secondary text-xs font-medium block truncate">En congé aujourd'hui</span>
-            <span className="font-headline-md text-headline-md text-on-surface leading-tight">{onLeaveCount}</span>
-          </div>
-        </div>
-        <div className={`${CARD_CLASSES} p-4 flex items-center gap-3`}>
-          <span className="material-symbols-outlined text-emerald-600 text-2xl shrink-0">event_available</span>
-          <div className="min-w-0">
-            <span className="text-secondary text-xs font-medium block truncate">Congés planifiés</span>
-            <span className="font-headline-md text-headline-md text-on-surface leading-tight">{Object.keys(conges).length}</span>
-          </div>
-        </div>
-      </section>
-
-      <div className="relative max-w-md">
-        <span className="absolute inset-y-0 left-3 flex items-center text-outline">
-          <span className="material-symbols-outlined text-sm">search</span>
-        </span>
-        <input
-          className={SEARCH_INPUT_CLASSES}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Rechercher un employé..."
-          type="text"
-          value={search}
-        />
-      </div>
-
-      <section className={`${CARD_CLASSES} divide-y divide-outline-variant overflow-hidden`}>
-        {filteredUsers.map((user) => {
-          const conge = conges[user.id];
-          const isOnLeave = !!conge && conge.du <= today && today <= conge.au;
-          const isUpcoming = !!conge && conge.du > today;
-          return (
-            <div className="flex items-center gap-3 px-5 py-3.5 hover:bg-surface-container-low transition-colors" key={user.id}>
-              <div className="w-9 h-9 rounded-full bg-primary-container text-on-primary flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden">
-                {user.profile_picture ? (
-                  <img alt="" className="w-full h-full object-cover" src={user.profile_picture} />
-                ) : (
-                  getInitials(`${user.first_name} ${user.last_name}`)
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-on-surface truncate">
-                  {user.first_name} {user.last_name}
-                </p>
-                <p className="text-xs text-secondary truncate">
-                  {user.role_display}
-                  {user.division_name && ` · ${user.division_name}`}
-                </p>
-              </div>
-              {conge ? (
-                <div className="flex items-center gap-2 shrink-0">
-                  <span
-                    className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${
-                      isOnLeave ? 'bg-amber-100 text-amber-700' : isUpcoming ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    {isOnLeave ? 'En congé' : isUpcoming ? 'À venir' : 'Terminé'} · {formatDate(conge.du)} → {formatDate(conge.au)}
-                  </span>
-                  <button
-                    className="w-7 h-7 flex items-center justify-center rounded text-secondary hover:bg-surface-container-high hover:text-on-surface transition-colors"
-                    onClick={() => handleClearConge(user.id)}
-                    title="Retirer le congé"
-                    type="button"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">close</span>
-                  </button>
-                </div>
-              ) : (
-                <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 shrink-0">Disponible</span>
-              )}
-              <button
-                className="text-xs font-bold text-primary hover:underline shrink-0"
-                onClick={() => openModal(user)}
-                type="button"
-              >
-                {conge ? 'Modifier' : 'Marquer en congé'}
-              </button>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="font-headline-md text-xl font-extrabold text-slate-900 tracking-tight">Congés</h1>
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-primary/10 text-primary">ADCH</span>
             </div>
-          );
-        })}
-        {filteredUsers.length === 0 && (
-          <div className="px-5 py-8 text-center text-secondary text-sm">Aucun employé ne correspond à votre recherche.</div>
-        )}
+            <p className="text-slate-500 text-xs mt-0.5">Indiquez si un employé est en congé — visible par toute l'équipe.</p>
+          </div>
+        </div>
+      </header>
+
+      {/* ==================================================================== */}
+      {/* KPIS                                                                 */}
+      {/* ==================================================================== */}
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/70 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 text-xs font-medium mb-1">
+            <span>Effectif total</span>
+            <span className="material-symbols-outlined text-slate-400 text-[18px]">groups</span>
+          </div>
+          <div className="text-2xl font-black text-slate-900 tracking-tight font-headline-md">{users.length}</div>
+        </div>
+        <div
+          className={`p-4 rounded-xl border shadow-2xs flex flex-col justify-between ${
+            onLeaveCount > 0 ? 'bg-amber-50/50 border-amber-200/60' : 'bg-slate-50 border-slate-200/70'
+          }`}
+        >
+          <div className="flex items-center justify-between text-slate-600 text-xs font-medium mb-1">
+            <span>En congé aujourd'hui</span>
+            <span className={`material-symbols-outlined text-[18px] ${onLeaveCount > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+              beach_access
+            </span>
+          </div>
+          <div className="text-2xl font-black text-slate-900 tracking-tight font-headline-md">{onLeaveCount}</div>
+        </div>
+        <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-200/60 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-600 text-xs font-medium mb-1">
+            <span>Congés planifiés</span>
+            <span className="material-symbols-outlined text-emerald-600 text-[18px]">event_available</span>
+          </div>
+          <div className="text-2xl font-black text-slate-900 tracking-tight font-headline-md">{Object.keys(conges).length}</div>
+        </div>
       </section>
 
+      {/* ==================================================================== */}
+      {/* RECHERCHE + TABLEAU                                                  */}
+      {/* ==================================================================== */}
+      <section className="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden">
+        <div className="p-4 border-b border-slate-100">
+          <div className="relative max-w-md">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">search</span>
+            <input
+              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-primary focus:bg-white transition-all"
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Rechercher un employé..."
+              type="text"
+              value={search}
+            />
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs text-slate-700">
+            <thead>
+              <tr className="bg-slate-50/80 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200/80">
+                <th className="px-5 py-3.5">Employé</th>
+                <th className="px-5 py-3.5">Statut</th>
+                <th className="px-5 py-3.5 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {filteredUsers.map((user) => {
+                const conge = conges[user.id];
+                const isOnLeave = !!conge && conge.du <= today && today <= conge.au;
+                const isUpcoming = !!conge && conge.du > today;
+                return (
+                  <tr className="hover:bg-slate-50/80 transition-colors" key={user.id}>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden">
+                          {user.profile_picture ? (
+                            <img alt="" className="w-full h-full object-cover" src={user.profile_picture} />
+                          ) : (
+                            getInitials(`${user.first_name} ${user.last_name}`)
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 truncate">
+                            {user.first_name} {user.last_name}
+                          </p>
+                          <p className="text-[11px] text-slate-500 truncate">
+                            {user.role_display}
+                            {user.division_name && ` · ${user.division_name}`}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      {conge ? (
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${
+                              isOnLeave
+                                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : isUpcoming
+                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                  : 'bg-slate-100 text-slate-500 border-slate-200'
+                            }`}
+                          >
+                            {isOnLeave ? 'En congé' : isUpcoming ? 'À venir' : 'Terminé'} · {formatDate(conge.du)} → {formatDate(conge.au)}
+                          </span>
+                          <button
+                            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                            onClick={() => handleClearConge(user.id)}
+                            title="Retirer le congé"
+                            type="button"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">close</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Disponible
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <button
+                        className="text-xs font-bold text-primary hover:underline"
+                        onClick={() => openModal(user)}
+                        type="button"
+                      >
+                        {conge ? 'Modifier' : 'Marquer en congé'}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {filteredUsers.length === 0 && (
+                <tr>
+                  <td className="px-5 py-10 text-center text-slate-400 text-xs" colSpan={3}>
+                    Aucun employé ne correspond à votre recherche.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* ==================================================================== */}
+      {/* MODAL : MARQUER EN CONGÉ                                             */}
+      {/* ==================================================================== */}
       <Modal
         footer={
           <>
             <button
-              className="px-5 py-2.5 rounded border border-outline-variant text-on-surface font-body-sm text-body-sm hover:bg-surface-container-high transition-colors"
+              className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-100 transition-colors"
               onClick={() => setIsModalOpen(false)}
               type="button"
             >
               Annuler
             </button>
             <button
-              className="px-5 py-2.5 rounded bg-on-primary-fixed-variant text-white font-body-sm text-body-sm font-bold hover:bg-primary transition-colors"
+              className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-on-primary-fixed-variant transition-colors"
               form="conge-form"
               type="submit"
             >
@@ -237,12 +296,12 @@ export default function AdchCongesPage() {
       >
         <form className="space-y-3" id="conge-form" onSubmit={handleSubmit}>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               <label className={LABEL_CLASSES} htmlFor="conge-du">
                 Du
               </label>
               <input
-                className="w-full px-3 py-2 bg-white border border-outline-variant rounded text-sm focus:ring-1 focus:ring-primary-container outline-none"
+                className={INPUT_CLASSES}
                 id="conge-du"
                 onChange={(event) => setDu(event.target.value)}
                 required
@@ -250,12 +309,12 @@ export default function AdchCongesPage() {
                 value={du}
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               <label className={LABEL_CLASSES} htmlFor="conge-au">
                 Au
               </label>
               <input
-                className="w-full px-3 py-2 bg-white border border-outline-variant rounded text-sm focus:ring-1 focus:ring-primary-container outline-none"
+                className={INPUT_CLASSES}
                 id="conge-au"
                 onChange={(event) => setAu(event.target.value)}
                 required
@@ -264,12 +323,12 @@ export default function AdchCongesPage() {
               />
             </div>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <label className={LABEL_CLASSES} htmlFor="conge-motif">
               Motif
             </label>
             <input
-              className="w-full px-3 py-2 bg-white border border-outline-variant rounded text-sm focus:ring-1 focus:ring-primary-container outline-none"
+              className={INPUT_CLASSES}
               id="conge-motif"
               onChange={(event) => setMotif(event.target.value)}
               placeholder="Ex : Congés annuels"

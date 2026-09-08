@@ -115,11 +115,17 @@ export default function DashboardDgPage() {
 
       // Seuls les rendez-vous déjà acceptés par le DG comptent comme de vrais
       // engagements ici — une demande encore PENDING n'est qu'une proposition
-      // (voir CalendrierDgPage.tsx, où le DG accepte/décline/reporte).
+      // (voir CalendrierDgPage.tsx, où le DG accepte/décline/reporte). Limité
+      // à aujourd'hui — sans ça les horaires affichés (ex: "08:40") ne disent
+      // pas si c'est aujourd'hui, demain ou dans deux semaines.
+      const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
+      const todayEnd = new Date(new Date().setHours(23, 59, 59, 999));
       const upcoming = events
-        .filter((e) => e.status === 'ACCEPTED' && new Date(e.starts_at).getTime() >= Date.now())
-        .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
-        .slice(0, 4);
+        .filter((e) => {
+          const startsAt = new Date(e.starts_at);
+          return e.status === 'ACCEPTED' && startsAt >= todayStart && startsAt <= todayEnd;
+        })
+        .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
       const uniqueContactIds = Array.from(new Set(upcoming.map((e) => e.contact)));
       const contactEntries = await Promise.all(
         uniqueContactIds.map((id) => getContact(id).catch(() => null)),
@@ -429,7 +435,7 @@ export default function DashboardDgPage() {
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="font-headline-md text-base font-bold text-slate-900">Agenda de la Direction</h2>
-                <p className="text-slate-400 text-xs">Prochains engagements</p>
+                <p className="text-slate-400 text-xs">Aujourd'hui</p>
               </div>
               <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
                 {agendaItems.length} engagement{agendaItems.length > 1 ? 's' : ''}
@@ -440,7 +446,7 @@ export default function DashboardDgPage() {
               {isLoading ? (
                 <p className="text-xs text-slate-400 text-center py-6">Chargement...</p>
               ) : agendaItems.length === 0 ? (
-                <p className="text-xs text-slate-400 text-center py-6">Aucun engagement à venir.</p>
+                <p className="text-xs text-slate-400 text-center py-6">Rien de prévu aujourd'hui.</p>
               ) : (
                 agendaItems.map(({ event, contactLabel }, idx) => {
                   const meta = EVENT_TYPE_META[event.event_type];

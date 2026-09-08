@@ -1,10 +1,14 @@
 import { api } from './api';
 
+export type NotificationUrgency = 'HIGH' | 'MEDIUM' | 'LOW';
+
 export interface Notification {
   id: number;
   message: string;
   contact: number | null;
   contact_name: string | null;
+  urgency: NotificationUrgency;
+  urgency_display: string;
   is_read: boolean;
   created_at: string;
 }
