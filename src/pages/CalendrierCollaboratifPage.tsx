@@ -189,14 +189,15 @@ function AllDayRow({ week, events, today, maxLanes, showDateNumbers, monthRef, o
         const overflow = dayPlacements.length - visible.length;
         return (
           <div
-            className={`p-1.5 min-h-[92px] border-outline-variant ${dayIndex < 6 ? 'border-r' : ''} ${
-              inCurrentMonth ? 'bg-surface-container-lowest' : 'bg-surface-container-low/50 opacity-40'
-            } ${isToday ? 'ring-2 ring-primary/30 ring-inset' : ''}`}
+            className={`relative p-1.5 min-h-[92px] border-slate-100 ${dayIndex < 6 ? 'border-r' : ''} ${
+              inCurrentMonth ? (isToday ? 'bg-primary/[0.04]' : 'bg-white') : 'bg-slate-50/50'
+            }`}
             key={dayIndex}
           >
+            {isToday && <span className="absolute inset-x-0 top-0 h-[3px] bg-primary" />}
             {showDateNumbers && (
               <button
-                className={`text-xs font-medium mb-1 ${isToday ? 'font-bold text-primary' : 'text-on-surface'} ${onSelectDay ? 'hover:underline' : ''}`}
+                className={`text-xs font-bold mb-1 ${isToday ? 'text-primary' : inCurrentMonth ? 'text-slate-700' : 'text-slate-300'} ${onSelectDay ? 'hover:underline' : ''}`}
                 onClick={() => onSelectDay?.(date)}
                 type="button"
               >
@@ -227,7 +228,7 @@ function AllDayRow({ week, events, today, maxLanes, showDateNumbers, monthRef, o
                 );
               })}
               {overflow > 0 && (
-                <div className="text-[9px] font-bold text-secondary px-1">
+                <div className="text-[9px] font-bold text-slate-400 px-1">
                   +{overflow} autre{overflow > 1 ? 's' : ''}
                 </div>
               )}
@@ -251,15 +252,15 @@ interface MonthViewProps {
 function MonthView({ year, month, events, today, onSelectEvent, onSelectDay }: MonthViewProps) {
   const weeks = useMemo(() => buildMonthWeeks(year, month), [year, month]);
   return (
-    <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
-      <div className="grid grid-cols-7 border-b border-outline-variant bg-surface-container-low">
+    <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-xs">
+      <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50">
         {WEEKDAY_LABELS.map((label) => (
-          <div className="py-3 text-center text-[11px] font-bold text-secondary" key={label}>
+          <div className="py-3 text-center text-[10px] font-bold uppercase tracking-wider text-slate-400" key={label}>
             {label}
           </div>
         ))}
       </div>
-      <div className="divide-y divide-outline-variant">
+      <div className="divide-y divide-slate-100">
         {weeks.map((week, index) => (
           <AllDayRow
             events={events}
@@ -294,23 +295,23 @@ function WeekView({ weekStart, events, today, onSelectEvent }: WeekViewProps) {
   const hours = Array.from({ length: GRID_END_HOUR - GRID_START_HOUR }, (_, i) => GRID_START_HOUR + i);
 
   return (
-    <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
-      <div className="grid border-b border-outline-variant bg-surface-container-low" style={{ gridTemplateColumns: '56px repeat(7, 1fr)' }}>
+    <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-xs">
+      <div className="grid border-b border-slate-100 bg-slate-50" style={{ gridTemplateColumns: '56px repeat(7, 1fr)' }}>
         <div />
         {weekDays.map((date, index) => {
           const isToday = isSameDay(date, today);
           return (
-            <div className="py-2 text-center border-l border-outline-variant" key={index}>
-              <p className="text-[10px] font-bold text-secondary uppercase">{WEEKDAY_LABELS[index]}</p>
-              <p className={`text-sm font-bold ${isToday ? 'text-primary' : 'text-on-surface'}`}>{date.getDate()}</p>
+            <div className="py-2 text-center border-l border-slate-100" key={index}>
+              <p className="text-[10px] font-bold text-slate-400 uppercase">{WEEKDAY_LABELS[index]}</p>
+              <p className={`text-sm font-bold ${isToday ? 'text-primary' : 'text-slate-800'}`}>{date.getDate()}</p>
             </div>
           );
         })}
       </div>
 
       {allDayEvents.length > 0 && (
-        <div className="grid border-b border-outline-variant" style={{ gridTemplateColumns: '56px repeat(7, 1fr)' }}>
-          <div className="flex items-center justify-center text-[9px] font-bold text-secondary uppercase">Jour</div>
+        <div className="grid border-b border-slate-100" style={{ gridTemplateColumns: '56px repeat(7, 1fr)' }}>
+          <div className="flex items-center justify-center text-[9px] font-bold text-slate-400 uppercase">Jour</div>
           <div className="col-span-7">
             <AllDayRow
               events={allDayEvents}
@@ -328,7 +329,7 @@ function WeekView({ weekStart, events, today, onSelectEvent }: WeekViewProps) {
         <div className="grid" style={{ gridTemplateColumns: '56px repeat(7, 1fr)' }}>
           <div>
             {hours.map((hour) => (
-              <div className="text-right pr-2 text-[10px] text-secondary -translate-y-2" key={hour} style={{ height: HOUR_HEIGHT }}>
+              <div className="text-right pr-2 text-[10px] text-slate-400 -translate-y-2" key={hour} style={{ height: HOUR_HEIGHT }}>
                 {String(hour).padStart(2, '0')}:00
               </div>
             ))}
@@ -336,9 +337,9 @@ function WeekView({ weekStart, events, today, onSelectEvent }: WeekViewProps) {
           {weekDays.map((_, dayIndex) => {
             const layouts = layoutTimedEvents(timedEventsByDay[dayIndex]);
             return (
-              <div className="relative border-l border-outline-variant" key={dayIndex} style={{ height: HOUR_HEIGHT * hours.length }}>
+              <div className="relative border-l border-slate-100" key={dayIndex} style={{ height: HOUR_HEIGHT * hours.length }}>
                 {hours.map((hour) => (
-                  <div className="border-b border-outline-variant/40" key={hour} style={{ height: HOUR_HEIGHT }} />
+                  <div className="border-b border-slate-100" key={hour} style={{ height: HOUR_HEIGHT }} />
                 ))}
                 {layouts.map(({ event, top, height, column, columns }) => {
                   const meta = TYPE_META[event.type];
@@ -379,9 +380,9 @@ function DayView({ date, events, onSelectEvent }: DayViewProps) {
   const hours = Array.from({ length: GRID_END_HOUR - GRID_START_HOUR }, (_, i) => GRID_START_HOUR + i);
 
   return (
-    <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
+    <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-xs">
       {allDayEvents.length > 0 && (
-        <div className="p-3 border-b border-outline-variant space-y-1.5">
+        <div className="p-3 border-b border-slate-100 space-y-1.5">
           {allDayEvents.map((event) => {
             const meta = TYPE_META[event.type];
             return (
@@ -402,14 +403,14 @@ function DayView({ date, events, onSelectEvent }: DayViewProps) {
         <div className="grid" style={{ gridTemplateColumns: '56px 1fr' }}>
           <div>
             {hours.map((hour) => (
-              <div className="text-right pr-2 text-[10px] text-secondary -translate-y-2" key={hour} style={{ height: HOUR_HEIGHT }}>
+              <div className="text-right pr-2 text-[10px] text-slate-400 -translate-y-2" key={hour} style={{ height: HOUR_HEIGHT }}>
                 {String(hour).padStart(2, '0')}:00
               </div>
             ))}
           </div>
-          <div className="relative border-l border-outline-variant" style={{ height: HOUR_HEIGHT * hours.length }}>
+          <div className="relative border-l border-slate-100" style={{ height: HOUR_HEIGHT * hours.length }}>
             {hours.map((hour) => (
-              <div className="border-b border-outline-variant/40" key={hour} style={{ height: HOUR_HEIGHT }} />
+              <div className="border-b border-slate-100" key={hour} style={{ height: HOUR_HEIGHT }} />
             ))}
             {layouts.map(({ event, top, height, column, columns }) => {
               const meta = TYPE_META[event.type];
@@ -444,47 +445,47 @@ function EventDetailModal({ event, onClose }: { event: CalendarEvent; onClose: (
       role="presentation"
     >
       <div
-        className="bg-white border border-outline-variant rounded-xl p-5 shadow-lg w-full max-w-md"
+        className="bg-white rounded-2xl p-5 shadow-xl w-full max-w-md"
         onClick={(domEvent) => domEvent.stopPropagation()}
         role="dialog"
         aria-modal="true"
       >
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className={`${meta.badge} w-9 h-9 rounded-lg flex items-center justify-center shrink-0`}>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className={`${meta.badge} w-9 h-9 rounded-xl flex items-center justify-center shrink-0`}>
               <span className="material-symbols-outlined text-[18px]">{meta.icon}</span>
             </span>
             <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-secondary">{meta.label}</p>
-              <h4 className="text-sm font-bold text-on-surface leading-snug">{event.title}</h4>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{meta.label}</p>
+              <h4 className="text-sm font-bold text-slate-900 leading-snug">{event.title}</h4>
             </div>
           </div>
-          <button className="text-secondary hover:text-on-surface shrink-0" onClick={onClose} type="button">
+          <button className="text-slate-400 hover:text-slate-700 shrink-0" onClick={onClose} type="button">
             <span className="material-symbols-outlined text-[18px]">close</span>
           </button>
         </div>
         <div className="mt-4 space-y-2 text-sm">
-          <div className="flex items-center gap-2 text-on-surface-variant">
-            <span className="material-symbols-outlined text-[16px] text-secondary shrink-0">event</span>
+          <div className="flex items-center gap-2 text-slate-600">
+            <span className="material-symbols-outlined text-[16px] text-slate-400 shrink-0">event</span>
             {formatDateRange(event)}
           </div>
-          <div className="flex items-center gap-2 text-on-surface-variant">
-            <span className="material-symbols-outlined text-[16px] text-secondary shrink-0">schedule</span>
+          <div className="flex items-center gap-2 text-slate-600">
+            <span className="material-symbols-outlined text-[16px] text-slate-400 shrink-0">schedule</span>
             {formatTimeRange(event)}
           </div>
-          <div className="flex items-center gap-2 text-on-surface-variant">
-            <span className="material-symbols-outlined text-[16px] text-secondary shrink-0">person</span>
+          <div className="flex items-center gap-2 text-slate-600">
+            <span className="material-symbols-outlined text-[16px] text-slate-400 shrink-0">person</span>
             {event.ownerName}
           </div>
           {event.location && (
-            <div className="flex items-center gap-2 text-on-surface-variant">
-              <span className="material-symbols-outlined text-[16px] text-secondary shrink-0">location_on</span>
+            <div className="flex items-center gap-2 text-slate-600">
+              <span className="material-symbols-outlined text-[16px] text-primary shrink-0">location_on</span>
               {event.location}
             </div>
           )}
           {event.linkedTo && (
-            <div className="flex items-center gap-2 text-on-surface-variant">
-              <span className="material-symbols-outlined text-[16px] text-secondary shrink-0">link</span>
+            <div className="flex items-center gap-2 text-slate-600">
+              <span className="material-symbols-outlined text-[16px] text-slate-400 shrink-0">link</span>
               {event.linkedTo}
             </div>
           )}
@@ -495,7 +496,7 @@ function EventDetailModal({ event, onClose }: { event: CalendarEvent; onClose: (
 }
 
 const INPUT_CLASSES =
-  'w-full px-3 py-2 bg-white border border-outline-variant rounded text-sm focus:ring-1 focus:ring-primary-container outline-none';
+  'w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-1 focus:ring-primary focus:bg-white outline-none transition-all';
 const LABEL_CLASSES = 'font-label-md text-label-md text-on-surface-variant uppercase tracking-wide';
 
 // Seuls Réunion et Appel sont créables ici : la Livraison est un troisième
@@ -554,23 +555,23 @@ function AddEventModal({ type, contacts, ownerName, onClose, onCreated }: AddEve
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose} role="presentation">
       <form
-        className="bg-white border border-outline-variant rounded-xl p-5 shadow-lg w-full max-w-md max-h-[90vh] overflow-y-auto"
+        className="bg-white rounded-2xl p-5 shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto"
         onClick={(domEvent) => domEvent.stopPropagation()}
         onSubmit={handleSubmit}
         role="dialog"
         aria-modal="true"
       >
         <div className="flex items-center justify-between gap-3 mb-4">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className={`${meta.badge} w-9 h-9 rounded-lg flex items-center justify-center shrink-0`}>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className={`${meta.badge} w-9 h-9 rounded-xl flex items-center justify-center shrink-0`}>
               <span className="material-symbols-outlined text-[18px]">{meta.icon}</span>
             </span>
             <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-secondary">{meta.label}</p>
-              <h4 className="text-sm font-bold text-on-surface">Nouvel événement</h4>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{meta.label}</p>
+              <h4 className="text-sm font-bold text-slate-900">Nouvel événement</h4>
             </div>
           </div>
-          <button className="text-secondary hover:text-on-surface shrink-0" onClick={onClose} type="button">
+          <button className="text-slate-400 hover:text-slate-700 shrink-0" onClick={onClose} type="button">
             <span className="material-symbols-outlined text-[18px]">close</span>
           </button>
         </div>
@@ -641,12 +642,12 @@ function AddEventModal({ type, contacts, ownerName, onClose, onCreated }: AddEve
             <label className={LABEL_CLASSES} htmlFor="event-owner">
               Personne
             </label>
-            <input className={`${INPUT_CLASSES} bg-surface-container-low`} disabled id="event-owner" type="text" value={ownerName} />
+            <input className={`${INPUT_CLASSES} bg-slate-100`} disabled id="event-owner" type="text" value={ownerName} />
           </div>
 
           <div className="space-y-1">
             <label className={LABEL_CLASSES} htmlFor="event-location">
-              Lieu <span className="normal-case font-normal text-secondary">(optionnel)</span>
+              Lieu <span className="normal-case font-normal text-slate-400">(optionnel)</span>
             </label>
             <input
               className={INPUT_CLASSES}
@@ -657,10 +658,10 @@ function AddEventModal({ type, contacts, ownerName, onClose, onCreated }: AddEve
             />
           </div>
 
-          {error && <p className="text-xs text-error font-medium">{error}</p>}
+          {error && <p className="text-xs text-rose-600 font-semibold">{error}</p>}
 
           <button
-            className="w-full flex items-center justify-center gap-1.5 bg-primary text-white py-2.5 rounded-full text-sm font-bold shadow-sm hover:shadow-md hover:bg-on-primary-fixed-variant active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none mt-1"
+            className="w-full flex items-center justify-center gap-1.5 bg-primary text-white py-2.5 rounded-xl text-sm font-bold shadow-xs hover:shadow-md hover:bg-on-primary-fixed-variant active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none mt-1"
             disabled={!title.trim() || !startDate || !contactId || isSubmitting}
             type="submit"
           >
@@ -861,26 +862,34 @@ export default function CalendrierCollaboratifPage() {
   }, [viewMode, currentDate]);
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="font-headline-md text-headline-md text-on-surface">Calendrier collaboratif</h2>
-          <div className="flex items-center gap-1 mt-1">
-            <button className="p-0.5 text-secondary hover:text-on-surface rounded transition-colors" onClick={goPrev} type="button">
-              <span className="material-symbols-outlined text-[16px]">chevron_left</span>
-            </button>
-            <p className="text-secondary text-sm">{rangeLabel}</p>
-            <button className="p-0.5 text-secondary hover:text-on-surface rounded transition-colors" onClick={goNext} type="button">
-              <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-            </button>
+    <div className="max-w-[1480px] mx-auto space-y-5 pb-16 text-slate-800 animate-fadeIn">
+      {/* ==================================================================== */}
+      {/* EN-TÊTE                                                              */}
+      {/* ==================================================================== */}
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-5 rounded-2xl border border-slate-100 shadow-xs">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <span className="material-symbols-outlined text-[20px]">calendar_month</span>
+          </div>
+          <div>
+            <h1 className="font-headline-md text-xl font-extrabold text-slate-900 tracking-tight">Calendrier collaboratif</h1>
+            <div className="flex items-center gap-1 mt-0.5">
+              <button className="w-6 h-6 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors" onClick={goPrev} type="button">
+                <span className="material-symbols-outlined text-[16px]">chevron_left</span>
+              </button>
+              <p className="text-slate-500 text-xs font-semibold capitalize min-w-[140px] text-center">{rangeLabel}</p>
+              <button className="w-6 h-6 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors" onClick={goNext} type="button">
+                <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+              </button>
+            </div>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center bg-white border border-outline-variant rounded-lg p-1">
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <div className="flex items-center bg-slate-100 rounded-xl p-1">
             {(['JOUR', 'SEMAINE', 'MOIS'] as ViewMode[]).map((mode) => (
               <button
-                className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${
-                  viewMode === mode ? 'bg-primary text-white' : 'hover:bg-surface-container'
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                  viewMode === mode ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'
                 }`}
                 key={mode}
                 onClick={() => setViewMode(mode)}
@@ -892,7 +901,7 @@ export default function CalendrierCollaboratifPage() {
           </div>
           <div className="relative">
             <button
-              className="flex items-center gap-1.5 bg-primary text-white pl-3 pr-3.5 py-2 rounded-full text-xs font-bold shadow-sm hover:shadow-md hover:bg-on-primary-fixed-variant active:scale-95 transition-all"
+              className="flex items-center gap-1.5 bg-primary hover:bg-on-primary-fixed-variant text-white pl-3 pr-3.5 py-2 rounded-xl text-xs font-bold shadow-xs hover:shadow-md active:scale-95 transition-all"
               onClick={() => setShowTypeMenu((prev) => !prev)}
               type="button"
             >
@@ -902,12 +911,17 @@ export default function CalendrierCollaboratifPage() {
             </button>
             {showTypeMenu && (
               <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowTypeMenu(false)} />
-                <div className="absolute right-0 top-full mt-2 z-50 w-60 bg-white border border-outline-variant rounded-lg shadow-lg p-1.5">
-                  <p className="px-2.5 pt-1 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-secondary">Type d'événement</p>
+                <button
+                  aria-label="Fermer le menu"
+                  className="fixed inset-0 z-40 cursor-default"
+                  onClick={() => setShowTypeMenu(false)}
+                  type="button"
+                />
+                <div className="absolute right-0 top-full mt-2 z-50 w-60 bg-white border border-slate-200 rounded-xl shadow-lg p-1.5 space-y-0.5">
+                  <p className="px-2.5 pt-1 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Type d'événement</p>
                   {(['REUNION', 'RELANCE'] as EventType[]).map((type) => (
                     <button
-                      className="w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-left text-xs font-semibold text-on-surface hover:bg-surface-container-low transition-colors"
+                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left text-xs font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
                       key={type}
                       onClick={() => {
                         setAddType(type);
@@ -915,8 +929,8 @@ export default function CalendrierCollaboratifPage() {
                       }}
                       type="button"
                     >
-                      <span className={`${TYPE_META[type].badge} w-6 h-6 rounded flex items-center justify-center shrink-0`}>
-                        <span className="material-symbols-outlined text-[14px]">{TYPE_META[type].icon}</span>
+                      <span className={`${TYPE_META[type].badge} w-7 h-7 rounded-lg flex items-center justify-center shrink-0`}>
+                        <span className="material-symbols-outlined text-[15px]">{TYPE_META[type].icon}</span>
                       </span>
                       {TYPE_META[type].label}
                     </button>
@@ -926,12 +940,18 @@ export default function CalendrierCollaboratifPage() {
             )}
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="flex flex-wrap items-center gap-3 bg-white border border-outline-variant rounded-lg p-3">
+      {/* ==================================================================== */}
+      {/* FILTRES                                                              */}
+      {/* ==================================================================== */}
+      <section className="flex flex-wrap items-center gap-3 bg-white rounded-2xl border border-slate-100 shadow-xs p-3.5">
         <div className="relative">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[16px] pointer-events-none">
+            person
+          </span>
           <select
-            className="bg-surface-container border border-outline-variant rounded py-1.5 pl-3 pr-8 text-xs font-semibold appearance-none focus:outline-none focus:border-primary-container transition-all"
+            className="bg-slate-50 border border-slate-200 rounded-xl py-1.5 pl-8 pr-8 text-xs font-semibold text-slate-700 appearance-none outline-none focus:ring-1 focus:ring-primary cursor-pointer transition-all"
             onChange={(event) => setPersonFilter(event.target.value)}
             value={personFilter}
           >
@@ -942,15 +962,15 @@ export default function CalendrierCollaboratifPage() {
               </option>
             ))}
           </select>
-          <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-outline text-sm pointer-events-none">
+          <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">
             expand_more
           </span>
         </div>
-        <div className="h-5 w-px bg-outline-variant hidden sm:block" />
+        <div className="h-5 w-px bg-slate-200 hidden sm:block" />
         <div className="flex flex-wrap gap-1.5">
           <button
             className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-colors ${
-              typeFilter === '' ? 'bg-primary text-white border-primary' : 'border-outline-variant text-secondary hover:bg-surface-container-high'
+              typeFilter === '' ? 'bg-primary text-white border-primary' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
             }`}
             onClick={() => setTypeFilter('')}
             type="button"
@@ -960,7 +980,7 @@ export default function CalendrierCollaboratifPage() {
           {(Object.keys(TYPE_META) as EventType[]).map((type) => (
             <button
               className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-colors ${
-                typeFilter === type ? 'bg-primary text-white border-primary' : 'border-outline-variant text-secondary hover:bg-surface-container-high'
+                typeFilter === type ? 'bg-primary text-white border-primary' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
               }`}
               key={type}
               onClick={() => setTypeFilter(type)}
@@ -975,10 +995,13 @@ export default function CalendrierCollaboratifPage() {
             Réinitialiser
           </button>
         )}
-      </div>
+      </section>
 
       {isLoading ? (
-        <p className="text-sm text-secondary py-10 text-center">Chargement...</p>
+        <div className="flex items-center justify-center min-h-[300px] text-slate-400 text-xs">
+          <span className="material-symbols-outlined animate-spin mr-2">progress_activity</span>
+          Chargement...
+        </div>
       ) : (
         <>
           {viewMode === 'MOIS' && (
@@ -1012,14 +1035,14 @@ export default function CalendrierCollaboratifPage() {
         />
       )}
 
-      <div className="flex flex-wrap gap-4 pt-4 border-t border-outline-variant">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 bg-white rounded-2xl border border-slate-100 shadow-xs px-4 py-3">
         {(Object.keys(TYPE_META) as EventType[]).map((type) => {
           const meta = TYPE_META[type];
           return (
-            <div className="flex items-center gap-2" key={type}>
-              <span className={`w-3 h-3 rounded-full ${meta.dot}`} />
-              <span className="text-[11px] font-bold text-secondary uppercase">{meta.label}</span>
-            </div>
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-slate-500" key={type}>
+              <span className={`w-2 h-2 rounded-full ${meta.dot}`} />
+              {meta.label}
+            </span>
           );
         })}
       </div>

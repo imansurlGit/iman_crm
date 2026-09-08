@@ -1,330 +1,400 @@
-import { Link, useParams } from 'react-router-dom';
+// Fiche partenaire — branchée sur le vrai `Contact` (contact_type=PARTENAIRE)
+// et sur ses vrais dossiers de partenariat (`PartnershipDossier`, voir
+// PartenariatDossiersContext). Le détail pas-à-pas d'un dossier (les 12
+// étapes) vit déjà dans PartenariatDossierDetailPage.tsx — cette page-ci est
+// la vue « partenaire » qui liste ses dossiers et permet d'y naviguer.
 
-type StepStatus = 'done' | 'current' | 'locked' | 'pending';
+import { useEffect, useState, type FormEvent } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import Modal from '../components/ui/Modal';
+import { ICON_CLASSES, LABEL_CLASSES } from '../components/ui/formStyles';
+import { getContact, updateContact, SECTORS, type Contact } from '../services/contactService';
+import { usePartenariatDossiers } from '../context/PartenariatDossiersContext';
+import { STEP_DEFINITIONS, stepIndex } from '../data/partenariatDossiers';
+import { formatMontant } from '../services/partnershipDossierService';
 
-interface WorkflowStep { id: number; title: string; owner: string; status: StepStatus; }
-interface DocItem      { title: string; statusLabel: string; statusKind: 'ok' | 'warn' | 'danger' | 'idle'; info: string; action: string; primary: boolean; }
-interface MeetingItem  { title: string; date: string; participants: string; past: boolean; }
-interface ActivityItem { text: string; date: string; actor: string; }
-interface TaskItem     { title: string; owner: string; due: string; priority: 'Haute' | 'Moyenne' | 'Basse'; }
+const CARD_CLASSES = 'bg-white rounded-2xl border border-slate-100 shadow-xs';
+const ICON_INPUT_CLASSES =
+  'w-full pl-10 pr-3 py-2 bg-white border border-outline-variant rounded-lg text-sm focus:ring-1 focus:ring-primary outline-none transition-all';
 
-const STEPS: WorkflowStep[] = [
-  { id:  1, title: 'Création du dossier',         owner: 'Chargée Partenariat', status: 'done'    },
-  { id:  2, title: 'Qualification initiale',       owner: 'Chargée Partenariat', status: 'done'    },
-  { id:  3, title: 'Premier entretien',            owner: 'Chargée Partenariat', status: 'done'    },
-  { id:  4, title: 'Fiche signalétique',           owner: 'Chargée Partenariat', status: 'done'    },
-  { id:  5, title: 'Préparation de la convention', owner: 'Chargée Partenariat', status: 'current' },
-  { id:  6, title: 'Validation CDM',               owner: 'CDM',                 status: 'locked'  },
-  { id:  7, title: 'Signature partenaire',         owner: 'Partenaire',          status: 'locked'  },
-  { id:  8, title: 'Paiement initial',             owner: 'Comptabilité',        status: 'locked'  },
-  { id:  9, title: "Plan d'activation",            owner: 'Chargée Partenariat', status: 'pending' },
-  { id: 10, title: 'Déploiement terrain',          owner: 'Équipe projet',       status: 'pending' },
-  { id: 11, title: 'Clôture opérationnelle',       owner: 'CDM',                 status: 'pending' },
-  { id: 12, title: 'Bilan final',                  owner: 'CDM',                 status: 'pending' },
-];
-
-const DOCS: DocItem[] = [
-  { title: 'Fiche signalétique',        statusLabel: 'Complète',              statusKind: 'ok',     info: 'Version 1.3 — validée le 02/08/2026',   action: 'Consulter',       primary: false },
-  { title: 'Convention de partenariat', statusLabel: 'En révision juridique', statusKind: 'warn',   info: 'Version 2 envoyée au partenaire',       action: 'Relancer',        primary: true  },
-  { title: 'Paiement initial',          statusLabel: 'En attente',            statusKind: 'danger', info: 'Acompte requis : 2 500 000 FCFA',       action: 'Suivre paiement', primary: true  },
-  { title: 'Dépôt éléments finaux',     statusLabel: 'À ouvrir',              statusKind: 'idle',   info: 'Espace partagé non encore créé',       action: 'Créer espace',    primary: false },
-];
-
-const MEETINGS: MeetingItem[] = [
-  { title: 'Réunion cadrage partenariat',  date: '08 août 2026, 10 h 30', participants: 'Chargée Partenariat + CDM',  past: true  },
-  { title: 'Comité validation convention', date: '14 août 2026, 15 h 00', participants: 'CDM + Service juridique',    past: false },
-  { title: 'Point lancement opérationnel',date: '20 août 2026, 09 h 00', participants: 'Équipe événement',           past: false },
-];
-
-const ACTIVITIES: ActivityItem[] = [
-  { text: 'Fiche signalétique validée',          date: '09 août 2026, 17 h 42', actor: 'Aïcha M.'  },
-  { text: 'Convention v2 envoyée au partenaire', date: '09 août 2026, 11 h 08', actor: 'Nadia R.'  },
-  { text: 'Réunion cadrage réalisée',            date: '08 août 2026, 12 h 00', actor: 'Aïcha M.'  },
-];
-
-const TASKS: TaskItem[] = [
-  { title: 'Vérifier la clause de visibilité média', owner: 'Chargée Partenariat', due: '11 août', priority: 'Haute'   },
-  { title: 'Préparer check-list logistique salon',   owner: 'CDM',                 due: '13 août', priority: 'Moyenne' },
-  { title: 'Partager maquette support partenaire',   owner: 'Chargée Partenariat', due: '15 août', priority: 'Basse'   },
-];
-
-const DOC_STATUS_CLASSES: Record<DocItem['statusKind'], string> = {
-  ok:     'text-green-700  bg-green-50          border-green-200',
-  warn:   'text-primary    bg-primary-fixed/30  border-primary-fixed',
-  danger: 'text-error      bg-error-container/30 border-error-container',
-  idle:   'text-on-surface-variant bg-surface-container border-outline-variant',
-};
-
-const PRIORITY_META: Record<TaskItem['priority'], { bg: string; text: string; dot: string }> = {
-  Haute:   { bg: 'bg-error-container/30', text: 'text-error',             dot: 'bg-error'          },
-  Moyenne: { bg: 'bg-primary-fixed/30',   text: 'text-primary',           dot: 'bg-primary-container' },
-  Basse:   { bg: 'bg-surface-container',  text: 'text-on-surface-variant',dot: 'bg-outline'        },
-};
-
-function stepRing(s: StepStatus) {
-  if (s === 'done')    return 'border-green-500   bg-green-500   text-white';
-  if (s === 'current') return 'border-primary-container bg-primary-container text-on-primary';
-  if (s === 'locked')  return 'border-outline     bg-surface-container-low     text-outline';
-  return 'border-outline-variant bg-surface-container-lowest text-outline';
+function getInitials(value: string) {
+  return value
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
 }
 
-function stepCard(s: StepStatus) {
-  if (s === 'done')    return 'border-green-200   bg-green-50/70';
-  if (s === 'current') return 'border-primary-container/50 bg-primary-fixed/20 shadow-sm';
-  if (s === 'locked')  return 'border-outline-variant/60 bg-surface-container-low opacity-80';
-  return 'border-outline-variant/30 bg-surface-container-lowest opacity-55';
+function formatDate(value: string): string {
+  return new Date(value).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
-
-const doneCount  = STEPS.filter((s) => s.status === 'done').length;
-const donePct    = Math.round((doneCount / STEPS.length) * 100);
-const currentStep = STEPS.find((s) => s.status === 'current');
 
 export default function PartenaireDetailPage() {
-  const { id } = useParams();
+  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const { dossiers } = usePartenariatDossiers();
+
+  const [contact, setContact] = useState<Contact | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [company, setCompany] = useState('');
+  const [name, setName] = useState('');
+  const [sector, setSector] = useState(SECTORS[0]);
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [notes, setNotes] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const contactId = Number(id);
+    if (!contactId) {
+      setNotFound(true);
+      setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
+    getContact(contactId)
+      .then(setContact)
+      .catch(() => setNotFound(true))
+      .finally(() => setIsLoading(false));
+  }, [id]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[300px] text-slate-400 text-xs">
+        <span className="material-symbols-outlined animate-spin mr-2">progress_activity</span>
+        Chargement...
+      </div>
+    );
+  }
+
+  if (notFound || !contact) {
+    return (
+      <div className="space-y-3">
+        <p className="text-xs text-slate-500">Ce partenaire est introuvable.</p>
+        <button className="text-primary text-sm font-semibold hover:underline" onClick={() => navigate('/partenaires')} type="button">
+          Retour aux partenaires
+        </button>
+      </div>
+    );
+  }
+
+  const contactDossiers = dossiers
+    .filter((d) => d.partenaire === contact.id)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const activeDossiers = contactDossiers.filter((d) => d.current_step !== 'CLOTURE');
+  const closedDossiers = contactDossiers.filter((d) => d.current_step === 'CLOTURE');
+  const totalEngage = contactDossiers.reduce((sum, d) => sum + Number(d.montant), 0);
+
+  function openEditModal() {
+    setFormError(null);
+    setCompany(contact!.company);
+    setName(contact!.name);
+    setSector(contact!.sector || SECTORS[0]);
+    setPhone(contact!.phone);
+    setEmail(contact!.email);
+    setNotes(contact!.notes ?? '');
+    setIsEditOpen(true);
+  }
+
+  async function handleFormSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!company.trim() || !name.trim() || isSubmitting) return;
+    setIsSubmitting(true);
+    setFormError(null);
+    try {
+      const updated = await updateContact(contact!.id, {
+        company: company.trim(),
+        name: name.trim(),
+        sector,
+        phone: phone.trim(),
+        email: email.trim(),
+        notes: notes.trim(),
+      });
+      setContact(updated);
+      setIsEditOpen(false);
+    } catch {
+      setFormError('Une erreur est survenue. Vérifiez les champs et réessayez.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   return (
-    <div className="flex flex-col gap-gutter">
-
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 font-label-md text-label-md text-on-surface-variant">
-        <Link to="/partenaires" className="hover:text-primary transition-colors">Partenaires</Link>
+    <div className="max-w-6xl mx-auto space-y-5 pb-16 text-slate-800 animate-fadeIn">
+      {/* Fil d'Ariane */}
+      <nav className="flex items-center gap-1.5 text-xs text-slate-500">
+        <Link className="hover:text-primary transition-colors" to="/partenaires">
+          Partenaires
+        </Link>
         <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-        <span className="text-on-surface font-semibold">NovaTel Afrique</span>
+        <span className="text-slate-900 font-semibold">{contact.company}</span>
       </nav>
 
-      {/* ── En-tête identité ── */}
-      <section className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
-        {/* Bande de couleur */}
-        <div className="h-1.5 w-full bg-gradient-to-r from-primary-container via-primary to-on-primary-fixed-variant" />
-
-        <div className="p-5 md:p-7">
-          <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
-
-            {/* Avatar + infos */}
-            <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-xl bg-on-surface flex items-center justify-center font-bold text-base text-white shrink-0">
-                NA
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-2.5 mb-2">
-                  <h1 className="font-headline-md text-headline-md text-on-surface">NovaTel Afrique</h1>
-                  <span className="inline-flex items-center gap-1.5 bg-primary-fixed/30 border border-primary-fixed text-primary font-label-md text-label-md px-2.5 py-1 rounded-full">
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary-container animate-pulse" />
-                    Étape {currentStep?.id} — {currentStep?.title}
-                  </span>
-                </div>
-
-                <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1.5">
-                  {[
-                    { icon: 'person', text: 'Mariam Issa · Directrice partenariats' },
-                    { icon: 'call',   text: '+227 90 00 00 00'                       },
-                    { icon: 'mail',   text: 'mariam@novatel.africa'                  },
-                    { icon: 'event',  text: 'Dossier ouvert le 01 août 2026'         },
-                  ].map((item) => (
-                    <div key={item.icon} className="flex items-center gap-1.5 font-body-sm text-body-sm text-on-surface-variant">
-                      <span className="material-symbols-outlined text-[15px] text-outline shrink-0">{item.icon}</span>
-                      {item.text}
-                    </div>
-                  ))}
-                </div>
-              </div>
+      {/* En-tête identité */}
+      <div className={`${CARD_CLASSES} overflow-hidden`}>
+        <div className="h-16 bg-[linear-gradient(120deg,#680200_0%,#8a1a0e_100%)]" />
+        <div className="px-8 pt-4 pb-6 flex flex-wrap items-start gap-4">
+          <div className="w-14 h-14 -mt-10 rounded-xl bg-white text-primary flex items-center justify-center border border-slate-200 shadow-md shrink-0 font-bold text-base">
+            {getInitials(contact.company || contact.name)}
+          </div>
+          <div className="flex-1 min-w-[220px]">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="font-headline-md text-xl font-bold text-slate-900">{contact.company}</h1>
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                <span className="material-symbols-outlined text-[12px]">handshake</span>
+                Partenaire
+              </span>
             </div>
-
-            {/* Actions */}
-            <div className="flex flex-wrap gap-2 shrink-0">
-              <Link
-                to="/partenariats/suivi"
-                className="inline-flex items-center gap-1.5 border border-outline-variant rounded-lg px-3 py-2 font-body-sm text-body-sm text-on-surface hover:border-primary-container hover:text-primary transition-colors"
-              >
-                <span className="material-symbols-outlined text-[16px]">view_kanban</span>
-                Vue événement
-              </Link>
-              <button
-                className="inline-flex items-center gap-1.5 bg-primary-container text-on-primary rounded-lg px-3 py-2 font-body-sm text-body-sm hover:opacity-90 active:scale-95 transition-all"
-                type="button"
-              >
-                <span className="material-symbols-outlined text-[16px]">edit</span>
-                Modifier
-              </button>
-            </div>
+            <p className="text-sm text-slate-500 mt-0.5">{[contact.name, contact.sector].filter(Boolean).join(' · ')}</p>
           </div>
-
-          {/* Méta-données */}
-          <div className="mt-5 pt-4 border-t border-outline-variant grid grid-cols-3 gap-4">
-            {[
-              { label: 'ID dossier',         value: `PT-${id ?? '101'}-2026` },
-              { label: 'Événement principal', value: 'Salon Tech 2026'        },
-              { label: 'Montant engagé',      value: '7 500 000 FCFA'         },
-            ].map((m) => (
-              <div key={m.label}>
-                <p className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">{m.label}</p>
-                <p className="font-body-sm font-semibold text-on-surface mt-0.5">{m.value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Bloc 1 : Workflow 12 étapes ── */}
-      <section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 md:p-7">
-        <div className="flex items-center justify-between mb-1">
-          <h2 className="font-headline-md text-base font-bold text-on-surface">Workflow de partenariat</h2>
-          <span className="font-label-md text-label-md text-on-surface-variant">
-            {donePct} % — {doneCount} / {STEPS.length} étapes
-          </span>
-        </div>
-
-        {/* Barre de progression */}
-        <div className="relative h-2 w-full rounded-full bg-surface-container my-4 overflow-hidden">
-          <div
-            className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-green-500 to-primary-container transition-all duration-700"
-            style={{ width: `${donePct}%` }}
-          />
-        </div>
-
-        <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-          {STEPS.map((step) => (
-            <article
-              key={step.id}
-              className={`rounded-lg border p-3 flex items-start gap-3 transition-all ${stepCard(step.status)}`}
-            >
-              <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 text-xs font-bold ${stepRing(step.status)}`}>
-                {step.status === 'done'   && <span className="material-symbols-outlined text-[14px]">check</span>}
-                {step.status === 'locked' && <span className="material-symbols-outlined text-[14px]">lock</span>}
-                {(step.status === 'current' || step.status === 'pending') && step.id}
-              </div>
-              <div className="min-w-0">
-                <p className="font-body-sm font-semibold text-on-surface leading-snug">{step.title}</p>
-                <p className="font-label-md text-label-md text-on-surface-variant mt-0.5">{step.owner}</p>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      {/* ── Blocs 2 + 3 : côte à côte ── */}
-      <div className="grid gap-gutter xl:grid-cols-2">
-
-        {/* Bloc 2 : Documents */}
-        <section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5">
-          <h2 className="font-headline-md text-base font-bold text-on-surface mb-4">Documents & conventions</h2>
-          <div className="space-y-3">
-            {DOCS.map((doc) => (
-              <article key={doc.title} className="rounded-lg border border-outline-variant bg-surface-container-low p-3.5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-body-sm font-semibold text-on-surface">{doc.title}</p>
-                    <span className={`inline-flex items-center mt-1 font-label-md text-label-md rounded-full border px-2.5 py-0.5 ${DOC_STATUS_CLASSES[doc.statusKind]}`}>
-                      {doc.statusLabel}
-                    </span>
-                  </div>
-                  <button
-                    className={`shrink-0 rounded-lg px-3 py-1.5 font-label-md text-label-md transition-all active:scale-95 ${
-                      doc.primary
-                        ? 'bg-primary-container text-on-primary hover:opacity-90'
-                        : 'border border-outline-variant text-on-surface hover:border-primary-container hover:text-primary'
-                    }`}
-                    type="button"
-                  >
-                    {doc.action}
-                  </button>
-                </div>
-                <p className="mt-2 font-label-md text-label-md text-on-surface-variant">{doc.info}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        {/* Bloc 3 : Calendrier */}
-        <section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5">
-          <h2 className="font-headline-md text-base font-bold text-on-surface mb-4">Calendrier & événements liés</h2>
-
-          <a
-            href="#"
-            className="mb-4 flex items-center justify-between rounded-lg border border-primary-fixed bg-primary-fixed/20 px-3.5 py-2.5 hover:bg-primary-fixed/35 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-primary text-[18px]">event_available</span>
-              <span className="font-body-sm font-semibold text-primary">Événement principal : Salon Tech 2026</span>
-            </div>
-            <span className="material-symbols-outlined text-primary text-[16px]">north_east</span>
-          </a>
-
-          <div className="space-y-2.5">
-            {MEETINGS.map((m) => (
-              <article key={m.title} className="rounded-lg border border-outline-variant p-3 flex items-start gap-3">
-                <div className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${m.past ? 'bg-outline' : 'bg-primary-container'}`} />
-                <div className="min-w-0 flex-1">
-                  <p className="font-body-sm font-semibold text-on-surface">{m.title}</p>
-                  <p className="font-label-md text-label-md text-on-surface-variant mt-0.5">{m.date}</p>
-                  <p className="font-label-md text-label-md text-on-surface-variant">Participants : {m.participants}</p>
-                </div>
-                <span className={`shrink-0 rounded-full px-2.5 py-0.5 font-label-md text-label-md ${
-                  m.past ? 'bg-surface-container text-on-surface-variant' : 'bg-primary-fixed/30 text-primary'
-                }`}>
-                  {m.past ? 'Passée' : 'À venir'}
-                </span>
-              </article>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      {/* ── Bloc 4 : Fil d'actualité + Tâches ── */}
-      <div className="grid gap-gutter xl:grid-cols-2">
-
-        {/* Fil d'actualité */}
-        <section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5">
-          <h2 className="font-headline-md text-base font-bold text-on-surface mb-4">Fil d'actualité</h2>
-          <ol className="relative border-l border-outline-variant ml-3 space-y-0">
-            {ACTIVITIES.map((a, i) => (
-              <li key={i} className="relative pl-5 pb-5 last:pb-0">
-                <span className="absolute -left-[9px] top-0.5 w-4 h-4 rounded-full border-2 border-primary-container bg-surface-container-lowest flex items-center justify-center">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary-container" />
-                </span>
-                <p className="font-body-sm font-semibold text-on-surface leading-snug">{a.text}</p>
-                <p className="font-label-md text-label-md text-on-surface-variant mt-0.5">{a.date} · {a.actor}</p>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        {/* Tâches */}
-        <section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-headline-md text-base font-bold text-on-surface">Tâches en cours</h2>
+          <div className="flex items-center gap-2 shrink-0">
             <button
-              className="inline-flex items-center gap-1 border border-outline-variant rounded-lg px-3 py-1.5 font-label-md text-label-md text-on-surface hover:border-primary-container hover:text-primary transition-colors"
+              className="px-4 py-2 text-xs font-bold border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-100 transition-colors"
+              onClick={openEditModal}
               type="button"
             >
-              <span className="material-symbols-outlined text-[14px]">add</span>
-              Nouvelle tâche
+              <span className="material-symbols-outlined text-[16px] align-middle mr-1">edit</span>
+              Modifier
+            </button>
+            <button
+              className="px-4 py-2 text-xs font-bold bg-primary text-white rounded-xl hover:bg-on-primary-fixed-variant transition-colors"
+              onClick={() => navigate('/partenariats/dossiers/nouveau')}
+              type="button"
+            >
+              <span className="material-symbols-outlined text-[16px] align-middle mr-1">add</span>
+              Nouveau dossier
             </button>
           </div>
+        </div>
 
-          <div className="space-y-2.5">
-            {TASKS.map((t) => (
-              <article key={t.title} className="rounded-lg border border-outline-variant bg-surface-container-low p-3.5 flex items-start gap-3">
-                <button
-                  className="mt-0.5 w-4 h-4 rounded border-2 border-outline shrink-0 hover:border-primary-container transition-colors"
-                  type="button"
-                  aria-label="Marquer comme fait"
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="font-body-sm text-on-surface leading-snug">{t.title}</p>
-                  <p className="font-label-md text-label-md text-on-surface-variant mt-1">
-                    {t.owner} · Avant le {t.due}
-                  </p>
-                </div>
-                <div className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-label-md text-label-md shrink-0 ${PRIORITY_META[t.priority].bg}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${PRIORITY_META[t.priority].dot}`} />
-                  <span className={PRIORITY_META[t.priority].text}>{t.priority}</span>
-                </div>
-              </article>
-            ))}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 border-t border-slate-100 px-8 py-5">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Partenaire depuis</p>
+            <p className="text-sm font-bold text-slate-900 mt-1">{formatDate(contact.created_at)}</p>
           </div>
-        </section>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Dossiers actifs</p>
+            <p className="text-sm font-bold text-slate-900 mt-1">{activeDossiers.length}</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Dossiers clôturés</p>
+            <p className="text-sm font-bold text-slate-900 mt-1">{closedDossiers.length}</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Montant total engagé</p>
+            <p className="text-sm font-bold text-slate-900 mt-1">{formatMontant(String(totalEngage))}</p>
+          </div>
+        </div>
       </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-3.5 items-start">
+        {/* Informations générales */}
+        <div className={`${CARD_CLASSES} p-5 lg:col-span-2`}>
+          <h3 className="font-headline-md text-sm font-bold text-slate-900 mb-4">Informations générales</h3>
+          <div className="space-y-3 text-left">
+            <div className="flex items-center gap-2.5 text-sm">
+              <span className="material-symbols-outlined text-[18px] text-slate-400 shrink-0">call</span>
+              <span className="text-slate-800">{contact.phone || '—'}</span>
+            </div>
+            <div className="flex items-center gap-2.5 text-sm">
+              <span className="material-symbols-outlined text-[18px] text-slate-400 shrink-0">mail</span>
+              <span className="text-slate-800 truncate">{contact.email || '—'}</span>
+            </div>
+            {contact.sector && (
+              <div className="flex items-center gap-2.5 text-sm">
+                <span className="material-symbols-outlined text-[18px] text-slate-400 shrink-0">business_center</span>
+                <span className="text-slate-800">{contact.sector}</span>
+              </div>
+            )}
+          </div>
+
+          {contact.notes && (
+            <div className="mt-5 pt-5 border-t border-slate-100">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Notes</p>
+              <p className="text-sm text-slate-700 leading-relaxed">{contact.notes}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Dossiers de partenariat */}
+        <div className={`${CARD_CLASSES} p-5 lg:col-span-3`}>
+          <h3 className="font-headline-md text-sm font-bold text-slate-900 mb-4">Dossiers de partenariat</h3>
+          <div className="space-y-2">
+            {contactDossiers.map((dossier) => {
+              const index = stepIndex(dossier.current_step);
+              return (
+                <button
+                  className="w-full flex items-center gap-3 px-3.5 py-3 bg-slate-50/80 rounded-xl hover:bg-slate-100 transition-colors text-left"
+                  key={dossier.id}
+                  onClick={() => navigate(`/partenariats/dossiers/${dossier.id}`)}
+                  type="button"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-[18px]">{STEP_DEFINITIONS[index].icon}</span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-slate-900 truncate">
+                        {dossier.reference} — {dossier.evenement}
+                      </p>
+                      {dossier.urgent && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200 shrink-0">
+                          Urgent
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      {STEP_DEFINITIONS[index].label} · {formatMontant(dossier.montant)}
+                    </p>
+                  </div>
+                  <span className="material-symbols-outlined text-slate-400 shrink-0">chevron_right</span>
+                </button>
+              );
+            })}
+            {contactDossiers.length === 0 && (
+              <p className="text-xs text-slate-400">Aucun dossier de partenariat pour ce partenaire pour le moment.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Modal : modifier partenaire */}
+      <Modal
+        footer={
+          <>
+            <button
+              className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-100 transition-colors"
+              onClick={() => setIsEditOpen(false)}
+              type="button"
+            >
+              Annuler
+            </button>
+            <button
+              className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-on-primary-fixed-variant transition-colors disabled:opacity-50"
+              disabled={isSubmitting}
+              form="partenaire-detail-form"
+              type="submit"
+            >
+              {isSubmitting ? 'Enregistrement...' : 'Enregistrer les modifications'}
+            </button>
+          </>
+        }
+        isOpen={isEditOpen}
+        maxWidthClassName="max-w-xl"
+        onClose={() => setIsEditOpen(false)}
+        title={`Modifier — ${contact.company}`}
+      >
+        <form className="space-y-3" id="partenaire-detail-form" onSubmit={handleFormSubmit}>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-0.5">
+              <label className={LABEL_CLASSES} htmlFor="pd-company">
+                Entreprise *
+              </label>
+              <div className="relative">
+                <span className={ICON_CLASSES}>apartment</span>
+                <input
+                  className={ICON_INPUT_CLASSES}
+                  id="pd-company"
+                  onChange={(event) => setCompany(event.target.value)}
+                  required
+                  type="text"
+                  value={company}
+                />
+              </div>
+            </div>
+            <div className="space-y-0.5">
+              <label className={LABEL_CLASSES} htmlFor="pd-sector">
+                Secteur d'activité
+              </label>
+              <div className="relative">
+                <span className={ICON_CLASSES}>business_center</span>
+                <select
+                  className={`${ICON_INPUT_CLASSES} appearance-none`}
+                  id="pd-sector"
+                  onChange={(event) => setSector(event.target.value)}
+                  value={sector}
+                >
+                  {SECTORS.map((sec) => (
+                    <option key={sec} value={sec}>
+                      {sec}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-0.5">
+              <label className={LABEL_CLASSES} htmlFor="pd-name">
+                Interlocuteur *
+              </label>
+              <div className="relative">
+                <span className={ICON_CLASSES}>person</span>
+                <input
+                  className={ICON_INPUT_CLASSES}
+                  id="pd-name"
+                  onChange={(event) => setName(event.target.value)}
+                  required
+                  type="text"
+                  value={name}
+                />
+              </div>
+            </div>
+            <div className="space-y-0.5">
+              <label className={LABEL_CLASSES} htmlFor="pd-phone">
+                Téléphone
+              </label>
+              <div className="relative">
+                <span className={ICON_CLASSES}>call</span>
+                <input
+                  className={ICON_INPUT_CLASSES}
+                  id="pd-phone"
+                  onChange={(event) => setPhone(event.target.value)}
+                  type="text"
+                  value={phone}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-0.5">
+            <label className={LABEL_CLASSES} htmlFor="pd-email">
+              Email
+            </label>
+            <div className="relative">
+              <span className={ICON_CLASSES}>mail</span>
+              <input
+                className={ICON_INPUT_CLASSES}
+                id="pd-email"
+                onChange={(event) => setEmail(event.target.value)}
+                type="email"
+                value={email}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-0.5">
+            <label className={LABEL_CLASSES} htmlFor="pd-notes">
+              Notes
+            </label>
+            <textarea
+              className="w-full px-3 py-2 bg-white border border-outline-variant rounded-lg text-sm focus:ring-1 focus:ring-primary outline-none transition-all resize-none"
+              id="pd-notes"
+              onChange={(event) => setNotes(event.target.value)}
+              rows={2}
+              value={notes}
+            />
+          </div>
+
+          {formError && <p className="text-xs text-rose-600 font-semibold">{formError}</p>}
+        </form>
+      </Modal>
     </div>
   );
 }

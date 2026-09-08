@@ -9,6 +9,8 @@ import SidebarComptable from './SidebarComptable';
 import SidebarVip from './SidebarVip';
 import SidebarDg from './SidebarDg';
 import SidebarAdch from './SidebarAdch';
+import SidebarCdm from './SidebarCdm';
+import SidebarChargePartenariat from './SidebarChargePartenariat';
 
 interface NavItem {
   label: string;
@@ -51,29 +53,6 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Client template', to: '/templates/client', icon: 'workspace_premium' },
       { label: 'Dashboard CDV template', to: '/templates/dashboard-cdv', icon: 'space_dashboard' },
       { label: 'Dashboard DG template', to: '/templates/dashboard-dg', icon: 'space_dashboard' },
-    ],
-  },
-  {
-    label: 'Opérations & Production',
-    roles: ['CDM'],
-    items: [
-      { label: 'Projets', to: '/projets', icon: 'account_tree' },
-      { label: 'Feuille de tâches', to: '/cdm/taches', icon: 'checklist' },
-      { label: 'Calendrier collaboratif', to: '/calendrier-collaboratif', icon: 'calendar_month' },
-    ],
-  },
-  {
-    label: "Fiches & Carnet d'adresses",
-    roles: ['CHARGE_PARTENARIAT'],
-    items: [{ label: 'Partenaires', to: '/partenaires', icon: 'handshake' }],
-  },
-  {
-    label: 'Opérations & Production',
-    roles: ['CHARGE_PARTENARIAT'],
-    items: [
-      { label: 'Dossiers partenariat', to: '/partenariats/dossiers', icon: 'folder_shared' },
-      { label: 'Feuilles de tâches', to: '/feuilles-de-taches', icon: 'checklist' },
-      { label: 'Calendrier collaboratif', to: '/calendrier-collaboratif', icon: 'calendar_month' },
     ],
   },
   {
@@ -144,6 +123,14 @@ export default function Sidebar() {
 
   if (user?.role === 'ADCH') {
     return <SidebarAdch />;
+  }
+
+  if (user?.role === 'CDM') {
+    return <SidebarCdm />;
+  }
+
+  if (user?.role === 'CHARGE_PARTENARIAT') {
+    return <SidebarChargePartenariat />;
   }
 
   function isVisible(roles: string[] | undefined) {
