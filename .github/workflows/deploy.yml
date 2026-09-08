@@ -24,6 +24,8 @@ jobs:
           node-version: 20
       - run: npm ci
       - run: npm run build
+        env:
+          VITE_API_URL: https://crm-back-s8w7.onrender.com/api/v1
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
