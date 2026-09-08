@@ -113,8 +113,11 @@ export default function DashboardDgPage() {
       setValidations(docs.filter((d) => d.status === 'A_VALIDER').slice(0, 6));
       setProjects([...projetsList, ...opportunitesList]);
 
+      // Seuls les rendez-vous déjà acceptés par le DG comptent comme de vrais
+      // engagements ici — une demande encore PENDING n'est qu'une proposition
+      // (voir CalendrierDgPage.tsx, où le DG accepte/décline/reporte).
       const upcoming = events
-        .filter((e) => new Date(e.starts_at).getTime() >= Date.now())
+        .filter((e) => e.status === 'ACCEPTED' && new Date(e.starts_at).getTime() >= Date.now())
         .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
         .slice(0, 4);
       const uniqueContactIds = Array.from(new Set(upcoming.map((e) => e.contact)));
